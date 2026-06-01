@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "tim.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -88,11 +89,14 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   OLED_Init();
   DHT11_Init();
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
   OLED_ShowString(0, 0, (uint8_t*)"Temp:", 8, 1);
-  OLED_ShowString(0, 16, (uint8_t*)"Humi:", 8, 1);
+  OLED_ShowString(0, 16, (uint8_t*)"FAN:", 8, 1);
   OLED_Refresh();
   /* USER CODE END 2 */
 
@@ -106,21 +110,53 @@ int main(void)
     DHT11_Data_TypeDef dht_data;
     char temp_str[20];
     char humi_str[20];
+    uint32_t pwm_period = 65535;
     
     if(DHT11_Read_Data(&dht_data) == 0)
     {
-        sprintf(temp_str, "%d.%d C  ", dht_data.temp_int, dht_data.temp_dec);
-        sprintf(humi_str, "%d.%d %%  ", dht_data.humi_int, dht_data.humi_dec);
+        sprintf(temp_str, "%d.%dC  humidity:%d.%dRH", dht_data.temp_int, dht_data.temp_dec, dht_data.humi_int, dht_data.humi_dec);
+        char fan_str[20];
+        
+        int8_t temp = (int8_t)dht_data.temp_int;
+        if(temp < 20)
+        {
+            uint32_t temp_diff = 20 - temp;
+            if(temp_diff > 20) temp_diff = 20;
+            uint32_t pwm_value = (temp_diff * pwm_period) / 20;
+            __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, pwm_value);
+        }
+        else
+        {
+            __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
+        }
+        
+        uint32_t humi_diff = 0;
+        if(dht_data.humi_int > 60)
+        {
+            humi_diff = dht_data.humi_int - 60;
+            if(humi_diff > 40) humi_diff = 40;
+            uint32_t pwm_value = (humi_diff * pwm_period) / 40;
+            __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, pwm_value);
+            uint32_t fan_speed = (humi_diff * 100) / 40;
+            sprintf(fan_str, "ON %d%%", fan_speed);
+        }
+        else
+        {
+            __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
+            sprintf(fan_str, "OFF      ");
+        }
         
         OLED_ShowString(40, 0, (uint8_t*)temp_str, 8, 1);
-        OLED_ShowString(40, 16, (uint8_t*)humi_str, 8, 1);
+        OLED_ShowString(40, 16, (uint8_t*)fan_str, 8, 1);
         OLED_Refresh();
     }
     else
     {
-        OLED_ShowString(40, 0, (uint8_t*)"Error", 8, 1);
-        OLED_ShowString(40, 16, (uint8_t*)"     ", 8, 1);
+        OLED_ShowString(40, 0, (uint8_t*)"Error                ", 8, 1);
+        OLED_ShowString(40, 16, (uint8_t*)"         ", 8, 1);
         OLED_Refresh();
+        __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
+        __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
     }
     
     HAL_Delay(2000);
