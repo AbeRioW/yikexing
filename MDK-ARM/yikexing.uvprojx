@@ -667,6 +667,11 @@
               <FileType>1</FileType>
               <FilePath>..\App\dht11.c</FilePath>
             </File>
+            <File>
+              <FileName>flash_storage.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\App\flash_storage.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

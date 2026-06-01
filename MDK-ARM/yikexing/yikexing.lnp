@@ -21,6 +21,7 @@
 "yikexing\system_stm32f1xx.o"
 "yikexing\oled.o"
 "yikexing\dht11.o"
+"yikexing\flash_storage.o"
 --strict --scatter "yikexing\yikexing.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers

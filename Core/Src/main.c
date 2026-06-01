@@ -25,6 +25,7 @@
 /* USER CODE BEGIN Includes */
 #include "oled.h"
 #include "dht11.h"
+#include "flash_storage.h"
 #include <stdio.h>
 /* USER CODE END Includes */
 
@@ -46,7 +47,22 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+typedef enum {
+    STATE_NORMAL,
+    STATE_SET_TEMP,
+    STATE_SET_HUMI,
+    STATE_SAVE
+} SystemState_t;
 
+SystemState_t system_state = STATE_NORMAL;
+uint8_t temp_threshold = 20;
+uint8_t humi_threshold = 60;
+volatile uint8_t key1_pressed = 0;
+volatile uint8_t key2_pressed = 0;
+volatile uint8_t key3_pressed = 0;
+volatile uint32_t key1_last_time = 0;
+volatile uint32_t key2_last_time = 0;
+volatile uint32_t key3_last_time = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -91,10 +107,43 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+  HAL_Delay(500);
+  
   OLED_Init();
+  OLED_Clear();
+  OLED_ShowString(0, 0, (uint8_t*)"Init...", 8, 1);
+  OLED_Refresh();
+  
+  HAL_Delay(500);
+  
   DHT11_Init();
+  
+  // 读取Flash
+  OLED_ShowString(0, 16, (uint8_t*)"Read Flash", 8, 1);
+  OLED_Refresh();
+  Flash_Init();
+  
+  FlashData_t flash_data;
+  if (Flash_ReadData(&flash_data)) {
+      temp_threshold = flash_data.temp_threshold;
+      humi_threshold = flash_data.humi_threshold;
+      OLED_ShowString(0, 16, (uint8_t*)"Load OK", 8, 1);
+  } else {
+      OLED_ShowString(0, 16, (uint8_t*)"Default", 8, 1);
+      // 首次使用写入默认值
+      OLED_ShowString(0, 32, (uint8_t*)"Write...", 8, 1);
+      OLED_Refresh();
+      Flash_WriteData(temp_threshold, humi_threshold);
+  }
+  OLED_Refresh();
+  HAL_Delay(1000);
+  
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
+  
+  OLED_Clear();
   OLED_ShowString(0, 0, (uint8_t*)"Temp:", 8, 1);
   OLED_ShowString(0, 16, (uint8_t*)"FAN:", 8, 1);
   OLED_Refresh();
@@ -107,59 +156,123 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    DHT11_Data_TypeDef dht_data;
-    char temp_str[20];
-    char humi_str[20];
-    uint32_t pwm_period = 65535;
+    char str[32];
     
-    if(DHT11_Read_Data(&dht_data) == 0)
-    {
-        sprintf(temp_str, "%d.%dC H:%d.%d%%", dht_data.temp_int, dht_data.temp_dec, dht_data.humi_int, dht_data.humi_dec);
+    if (key1_pressed) {
+        key1_pressed = 0;
+        if (system_state == STATE_NORMAL) {
+            system_state = STATE_SET_TEMP;
+        } else if (system_state == STATE_SET_TEMP) {
+            system_state = STATE_SET_HUMI;
+        } else if (system_state == STATE_SET_HUMI) {
+            system_state = STATE_SAVE;
+        } else if (system_state == STATE_SAVE) {
+            system_state = STATE_NORMAL;
+        }
+    }
+    
+    if (key2_pressed) {
+        key2_pressed = 0;
+        if (system_state == STATE_SET_TEMP) {
+            if (temp_threshold < 60) temp_threshold++;
+        } else if (system_state == STATE_SET_HUMI) {
+            if (humi_threshold < 100) humi_threshold++;
+        }
+    }
+    
+    if (key3_pressed) {
+        key3_pressed = 0;
+        if (system_state == STATE_SET_TEMP) {
+            if (temp_threshold > 0) temp_threshold--;
+        } else if (system_state == STATE_SET_HUMI) {
+            if (humi_threshold > 0) humi_threshold--;
+        }
+    }
+    
+    if (system_state == STATE_NORMAL) {
         char fan_str[20];
+        DHT11_Data_TypeDef dht_data;
+        uint32_t pwm_period = 65535;
         
-        int8_t temp = (int8_t)dht_data.temp_int;
-        if(temp < 20)
+        if(DHT11_Read_Data(&dht_data) == 0)
         {
-            uint32_t temp_diff = 20 - temp;
-            if(temp_diff > 20) temp_diff = 20;
-            uint32_t pwm_value = (temp_diff * pwm_period) / 20;
-            __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, pwm_value);
+            sprintf(str, "%d.%dC H:%d.%d%%", dht_data.temp_int, dht_data.temp_dec, dht_data.humi_int, dht_data.humi_dec);
+            
+            int8_t temp = (int8_t)dht_data.temp_int;
+            if(temp < temp_threshold)
+            {
+                uint32_t temp_diff = temp_threshold - temp;
+                if(temp_diff > temp_threshold) temp_diff = temp_threshold;
+                uint32_t pwm_value = (temp_diff * pwm_period) / temp_threshold;
+                __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, pwm_value);
+            }
+            else
+            {
+                __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
+            }
+            
+            uint32_t humi_diff = 0;
+            if(dht_data.humi_int > humi_threshold)
+            {
+                uint8_t max_diff = 100 - humi_threshold;
+                humi_diff = dht_data.humi_int - humi_threshold;
+                if(humi_diff > max_diff) humi_diff = max_diff;
+                uint32_t pwm_value = (humi_diff * pwm_period) / max_diff;
+                __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, pwm_value);
+                uint32_t fan_speed = (humi_diff * 100) / max_diff;
+                sprintf(fan_str, "ON %d%%", fan_speed);
+            }
+            else
+            {
+                __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
+                sprintf(fan_str, "OFF      ");
+            }
+            
+            OLED_ShowString(40, 0, (uint8_t*)str, 8, 1);
+            OLED_ShowString(40, 16, (uint8_t*)fan_str, 8, 1);
+            OLED_Refresh();
         }
         else
         {
+            OLED_ShowString(40, 0, (uint8_t*)"Error", 8, 1);
+            OLED_ShowString(40, 16, (uint8_t*)"     ", 8, 1);
+            OLED_Refresh();
             __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
-        }
-        
-        uint32_t humi_diff = 0;
-        if(dht_data.humi_int > 60)
-        {
-            humi_diff = dht_data.humi_int - 60;
-            if(humi_diff > 40) humi_diff = 40;
-            uint32_t pwm_value = (humi_diff * pwm_period) / 40;
-            __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, pwm_value);
-            uint32_t fan_speed = (humi_diff * 100) / 40;
-            sprintf(fan_str, "ON %d%%", fan_speed);
-        }
-        else
-        {
             __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
-            sprintf(fan_str, "OFF      ");
         }
         
-        OLED_ShowString(40, 0, (uint8_t*)temp_str, 8, 1);
-        OLED_ShowString(40, 16, (uint8_t*)fan_str, 8, 1);
+        HAL_Delay(2000);
+    } else if (system_state == STATE_SET_TEMP) {
+        OLED_Clear();
+        OLED_ShowString(0, 0, (uint8_t*)"Set Temp:", 8, 1);
+        sprintf(str, "%d", temp_threshold);
+        OLED_ShowString(40, 16, (uint8_t*)str, 8, 1);
+        OLED_Refresh();
+        HAL_Delay(100);
+    } else if (system_state == STATE_SET_HUMI) {
+        OLED_Clear();
+        OLED_ShowString(0, 0, (uint8_t*)"Set Humi:", 8, 1);
+        sprintf(str, "%d", humi_threshold);
+        OLED_ShowString(40, 16, (uint8_t*)str, 8, 1);
+        OLED_Refresh();
+        HAL_Delay(100);
+    } else if (system_state == STATE_SAVE) {
+        OLED_Clear();
+        OLED_ShowString(0, 0, (uint8_t*)"Saving...", 8, 1);
+        OLED_Refresh();
+        if (Flash_WriteData(temp_threshold, humi_threshold)) {
+            OLED_ShowString(0, 16, (uint8_t*)"OK!", 8, 1);
+        } else {
+            OLED_ShowString(0, 16, (uint8_t*)"Fail!", 8, 1);
+        }
+        OLED_Refresh();
+        HAL_Delay(1000);
+        system_state = STATE_NORMAL;
+        OLED_Clear();
+        OLED_ShowString(0, 0, (uint8_t*)"Temp:", 8, 1);
+        OLED_ShowString(0, 16, (uint8_t*)"FAN:", 8, 1);
         OLED_Refresh();
     }
-    else
-    {
-        OLED_ShowString(40, 0, (uint8_t*)"Error", 8, 1);
-        OLED_ShowString(40, 16, (uint8_t*)"     ", 8, 1);
-        OLED_Refresh();
-        __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
-        __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
-    }
-    
-    HAL_Delay(2000);
   }
   /* USER CODE END 3 */
 }
@@ -204,7 +317,26 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+    uint32_t now = HAL_GetTick();
+    
+    if (GPIO_Pin == KEY1_Pin) {
+        if (now - key1_last_time > 200) {
+            key1_pressed = 1;
+            key1_last_time = now;
+        }
+    } else if (GPIO_Pin == KEY2_Pin) {
+        if (now - key2_last_time > 200) {
+            key2_pressed = 1;
+            key2_last_time = now;
+        }
+    } else if (GPIO_Pin == KEY3_Pin) {
+        if (now - key3_last_time > 200) {
+            key3_pressed = 1;
+            key3_last_time = now;
+        }
+    }
+}
 /* USER CODE END 4 */
 
 /**
