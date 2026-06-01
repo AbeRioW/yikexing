@@ -1,0 +1,28 @@
+yikexing\gpio.o: ../Core/Src/gpio.c
+yikexing\gpio.o: ../Core/Inc/gpio.h
+yikexing\gpio.o: ../Core/Inc/main.h
+yikexing\gpio.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h
+yikexing\gpio.o: ../Core/Inc/stm32f1xx_hal_conf.h
+yikexing\gpio.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_rcc.h
+yikexing\gpio.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_def.h
+yikexing\gpio.o: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f1xx.h
+yikexing\gpio.o: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f103xb.h
+yikexing\gpio.o: ../Drivers/CMSIS/Include/core_cm3.h
+yikexing\gpio.o: D:\Program Files\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+yikexing\gpio.o: ../Drivers/CMSIS/Include/cmsis_version.h
+yikexing\gpio.o: ../Drivers/CMSIS/Include/cmsis_compiler.h
+yikexing\gpio.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
+yikexing\gpio.o: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/system_stm32f1xx.h
+yikexing\gpio.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h
+yikexing\gpio.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
+yikexing\gpio.o: D:\Program Files\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
+yikexing\gpio.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_rcc_ex.h
+yikexing\gpio.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_gpio.h
+yikexing\gpio.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_gpio_ex.h
+yikexing\gpio.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_exti.h
+yikexing\gpio.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_dma.h
+yikexing\gpio.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_dma_ex.h
+yikexing\gpio.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_cortex.h
+yikexing\gpio.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash.h
+yikexing\gpio.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash_ex.h
+yikexing\gpio.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h

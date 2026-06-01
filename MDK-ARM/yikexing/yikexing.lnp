@@ -1,0 +1,24 @@
+--cpu Cortex-M3
+"yikexing\startup_stm32f103xb.o"
+"yikexing\main.o"
+"yikexing\gpio.o"
+"yikexing\stm32f1xx_it.o"
+"yikexing\stm32f1xx_hal_msp.o"
+"yikexing\stm32f1xx_hal_gpio_ex.o"
+"yikexing\stm32f1xx_hal.o"
+"yikexing\stm32f1xx_hal_rcc.o"
+"yikexing\stm32f1xx_hal_rcc_ex.o"
+"yikexing\stm32f1xx_hal_gpio.o"
+"yikexing\stm32f1xx_hal_dma.o"
+"yikexing\stm32f1xx_hal_cortex.o"
+"yikexing\stm32f1xx_hal_pwr.o"
+"yikexing\stm32f1xx_hal_flash.o"
+"yikexing\stm32f1xx_hal_flash_ex.o"
+"yikexing\stm32f1xx_hal_exti.o"
+"yikexing\system_stm32f1xx.o"
+"yikexing\oled.o"
+"yikexing\dht11.o"
+--strict --scatter "yikexing\yikexing.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list "yikexing.map" -o yikexing\yikexing.axf
