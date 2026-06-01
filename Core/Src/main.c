@@ -49,12 +49,17 @@
 /* USER CODE BEGIN PV */
 typedef enum {
     STATE_NORMAL,
-    STATE_SET_TEMP,
-    STATE_SET_HUMI,
+    STATE_SETTING,
     STATE_SAVE
 } SystemState_t;
 
+typedef enum {
+    SELECT_TEMP,
+    SELECT_HUMI
+} SelectItem_t;
+
 SystemState_t system_state = STATE_NORMAL;
+SelectItem_t select_item = SELECT_TEMP;
 uint8_t temp_threshold = 20;
 uint8_t humi_threshold = 60;
 volatile uint8_t key1_pressed = 0;
@@ -63,6 +68,10 @@ volatile uint8_t key3_pressed = 0;
 volatile uint32_t key1_last_time = 0;
 volatile uint32_t key2_last_time = 0;
 volatile uint32_t key3_last_time = 0;
+uint8_t last_temp_threshold = 255;
+uint8_t last_humi_threshold = 255;
+SelectItem_t last_select_item = SELECT_TEMP + 1;
+uint8_t first_enter_setting = 1;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -161,31 +170,37 @@ int main(void)
     if (key1_pressed) {
         key1_pressed = 0;
         if (system_state == STATE_NORMAL) {
-            system_state = STATE_SET_TEMP;
-        } else if (system_state == STATE_SET_TEMP) {
-            system_state = STATE_SET_HUMI;
-        } else if (system_state == STATE_SET_HUMI) {
-            system_state = STATE_SAVE;
-        } else if (system_state == STATE_SAVE) {
-            system_state = STATE_NORMAL;
+            system_state = STATE_SETTING;
+            select_item = SELECT_TEMP;
+            first_enter_setting = 1;
+        } else if (system_state == STATE_SETTING) {
+            if (select_item == SELECT_TEMP) {
+                select_item = SELECT_HUMI;
+            } else {
+                system_state = STATE_SAVE;
+            }
         }
     }
     
     if (key2_pressed) {
         key2_pressed = 0;
-        if (system_state == STATE_SET_TEMP) {
-            if (temp_threshold < 60) temp_threshold++;
-        } else if (system_state == STATE_SET_HUMI) {
-            if (humi_threshold < 100) humi_threshold++;
+        if (system_state == STATE_SETTING) {
+            if (select_item == SELECT_TEMP) {
+                if (temp_threshold < 60) temp_threshold++;
+            } else {
+                if (humi_threshold < 100) humi_threshold++;
+            }
         }
     }
     
     if (key3_pressed) {
         key3_pressed = 0;
-        if (system_state == STATE_SET_TEMP) {
-            if (temp_threshold > 0) temp_threshold--;
-        } else if (system_state == STATE_SET_HUMI) {
-            if (humi_threshold > 0) humi_threshold--;
+        if (system_state == STATE_SETTING) {
+            if (select_item == SELECT_TEMP) {
+                if (temp_threshold > 0) temp_threshold--;
+            } else {
+                if (humi_threshold > 0) humi_threshold--;
+            }
         }
     }
     
@@ -242,20 +257,47 @@ int main(void)
         }
         
         HAL_Delay(2000);
-    } else if (system_state == STATE_SET_TEMP) {
-        OLED_Clear();
-        OLED_ShowString(0, 0, (uint8_t*)"Set Temp:", 8, 1);
-        sprintf(str, "%d", temp_threshold);
-        OLED_ShowString(40, 16, (uint8_t*)str, 8, 1);
-        OLED_Refresh();
-        HAL_Delay(100);
-    } else if (system_state == STATE_SET_HUMI) {
-        OLED_Clear();
-        OLED_ShowString(0, 0, (uint8_t*)"Set Humi:", 8, 1);
-        sprintf(str, "%d", humi_threshold);
-        OLED_ShowString(40, 16, (uint8_t*)str, 8, 1);
-        OLED_Refresh();
-        HAL_Delay(100);
+    } else if (system_state == STATE_SETTING) {
+        uint8_t need_refresh = 0;
+        
+        if (first_enter_setting) {
+            need_refresh = 1;
+            first_enter_setting = 0;
+        } else if (temp_threshold != last_temp_threshold || 
+                  humi_threshold != last_humi_threshold || 
+                  select_item != last_select_item) {
+            need_refresh = 1;
+        }
+        
+        if (need_refresh) {
+            OLED_Clear();
+            // 显示温度
+            if (select_item == SELECT_TEMP) {
+                OLED_ShowString(0, 0, (uint8_t*)">Temp:", 8, 1);
+            } else {
+                OLED_ShowString(0, 0, (uint8_t*)" Temp:", 8, 1);
+            }
+            sprintf(str, "%d", temp_threshold);
+            OLED_ShowString(40, 0, (uint8_t*)str, 8, 1);
+            
+            // 显示湿度
+            if (select_item == SELECT_HUMI) {
+                OLED_ShowString(0, 16, (uint8_t*)">Humi:", 8, 1);
+            } else {
+                OLED_ShowString(0, 16, (uint8_t*)" Humi:", 8, 1);
+            }
+            sprintf(str, "%d", humi_threshold);
+            OLED_ShowString(40, 16, (uint8_t*)str, 8, 1);
+            
+            // 提示
+            OLED_ShowString(0, 32, (uint8_t*)"KEY1:Next/Save", 8, 1);
+            OLED_Refresh();
+            
+            last_temp_threshold = temp_threshold;
+            last_humi_threshold = humi_threshold;
+            last_select_item = select_item;
+        }
+        HAL_Delay(50);
     } else if (system_state == STATE_SAVE) {
         OLED_Clear();
         OLED_ShowString(0, 0, (uint8_t*)"Saving...", 8, 1);
