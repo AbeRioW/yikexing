@@ -114,7 +114,7 @@ int main(void)
     
     if(DHT11_Read_Data(&dht_data) == 0)
     {
-        sprintf(temp_str, "%d.%dC  humidity:%d.%dRH", dht_data.temp_int, dht_data.temp_dec, dht_data.humi_int, dht_data.humi_dec);
+        sprintf(temp_str, "%d.%dC H:%d.%d%%", dht_data.temp_int, dht_data.temp_dec, dht_data.humi_int, dht_data.humi_dec);
         char fan_str[20];
         
         int8_t temp = (int8_t)dht_data.temp_int;
@@ -152,8 +152,8 @@ int main(void)
     }
     else
     {
-        OLED_ShowString(40, 0, (uint8_t*)"Error                ", 8, 1);
-        OLED_ShowString(40, 16, (uint8_t*)"         ", 8, 1);
+        OLED_ShowString(40, 0, (uint8_t*)"Error", 8, 1);
+        OLED_ShowString(40, 16, (uint8_t*)"     ", 8, 1);
         OLED_Refresh();
         __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
         __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
