@@ -27,9 +27,12 @@ yikexing\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash_ex.h
 yikexing\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h
 yikexing\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h
 yikexing\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h
+yikexing\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
 yikexing\main.o: ../Core/Inc/tim.h
+yikexing\main.o: ../Core/Inc/usart.h
 yikexing\main.o: ../Core/Inc/gpio.h
 yikexing\main.o: ../App/oled.h
 yikexing\main.o: ../App/dht11.h
 yikexing\main.o: ../App/flash_storage.h
 yikexing\main.o: D:\Program Files\KEIL5\ARM\ARMCC\Bin\..\include\stdio.h
+yikexing\main.o: D:\Program Files\KEIL5\ARM\ARMCC\Bin\..\include\string.h

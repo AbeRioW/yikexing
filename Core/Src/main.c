@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "tim.h"
+#include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -26,7 +27,9 @@
 #include "oled.h"
 #include "dht11.h"
 #include "flash_storage.h"
+#include "usart.h"
 #include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -72,6 +75,7 @@ uint8_t last_temp_threshold = 255;
 uint8_t last_humi_threshold = 255;
 SelectItem_t last_select_item = SELECT_TEMP + 1;
 uint8_t first_enter_setting = 1;
+uint32_t last_send_time = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -115,6 +119,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_TIM2_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
   HAL_Delay(500);
   
@@ -206,11 +211,21 @@ int main(void)
     
     if (system_state == STATE_NORMAL) {
         char fan_str[20];
+        char uart_str[32];
         DHT11_Data_TypeDef dht_data;
         uint32_t pwm_period = 65535;
+        static uint8_t last_temp_int = 0;
+        static uint8_t last_temp_dec = 0;
+        static uint8_t last_humi_int = 0;
+        static uint8_t last_humi_dec = 0;
         
         if(DHT11_Read_Data(&dht_data) == 0)
         {
+            last_temp_int = dht_data.temp_int;
+            last_temp_dec = dht_data.temp_dec;
+            last_humi_int = dht_data.humi_int;
+            last_humi_dec = dht_data.humi_dec;
+            
             sprintf(str, "%d.%dC H:%d.%d%%", dht_data.temp_int, dht_data.temp_dec, dht_data.humi_int, dht_data.humi_dec);
             
             int8_t temp = (int8_t)dht_data.temp_int;
@@ -254,6 +269,16 @@ int main(void)
             OLED_Refresh();
             __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
             __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
+        }
+        
+        // 每5秒发送一次数据到蓝牙
+        uint32_t current_time = HAL_GetTick();
+        if (current_time - last_send_time >= 5000) {
+            last_send_time = current_time;
+            // 格式：temp:xxC,hum:xx%
+            sprintf(uart_str, "temp:%d.%dC,hum:%d.%d%%\r\n", 
+                    last_temp_int, last_temp_dec, last_humi_int, last_humi_dec);
+            HAL_UART_Transmit(&huart2, (uint8_t*)uart_str, strlen(uart_str), 100);
         }
         
         HAL_Delay(2000);
