@@ -76,6 +76,12 @@ uint8_t last_humi_threshold = 255;
 SelectItem_t last_select_item = SELECT_TEMP + 1;
 uint8_t first_enter_setting = 1;
 uint32_t last_send_time = 0;
+volatile uint8_t uart_rx_flag = 0;
+uint8_t uart_rx_buf[32];
+uint8_t uart_rx_idx = 0;
+uint8_t led_manual_mode = 0;
+uint8_t fan_manual_mode = 0;
+uint8_t uart_rx_byte;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -157,6 +163,9 @@ int main(void)
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
   
+  // 启动串口中断接收
+  HAL_UART_Receive_IT(&huart2, &uart_rx_byte, 1);
+  
   OLED_Clear();
   OLED_ShowString(0, 0, (uint8_t*)"Temp:", 8, 1);
   OLED_ShowString(0, 16, (uint8_t*)"FAN:", 8, 1);
@@ -171,6 +180,31 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     char str[32];
+    
+    // 串口命令解析
+    if (uart_rx_flag) {
+        uart_rx_flag = 0;
+        // 发送确认信号
+        HAL_UART_Transmit(&huart2, (uint8_t*)"OK\r\n", 4, 100);
+        if (strstr((char*)uart_rx_buf, "ledon") != NULL) {
+            led_manual_mode = 1;
+            __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 65535);
+        }
+        if (strstr((char*)uart_rx_buf, "ledoff") != NULL) {
+            led_manual_mode = 0;
+            __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
+        }
+        if (strstr((char*)uart_rx_buf, "fanon") != NULL) {
+            fan_manual_mode = 1;
+            __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 65535);
+        }
+        if (strstr((char*)uart_rx_buf, "fanoff") != NULL) {
+            fan_manual_mode = 0;
+            __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
+        }
+        uart_rx_idx = 0; // 重置缓冲区
+        uart_rx_buf[0] = '\0';
+    }
     
     if (key1_pressed) {
         key1_pressed = 0;
@@ -229,33 +263,45 @@ int main(void)
             sprintf(str, "%d.%dC H:%d.%d%%", dht_data.temp_int, dht_data.temp_dec, dht_data.humi_int, dht_data.humi_dec);
             
             int8_t temp = (int8_t)dht_data.temp_int;
-            if(temp < temp_threshold)
-            {
-                uint32_t temp_diff = temp_threshold - temp;
-                if(temp_diff > temp_threshold) temp_diff = temp_threshold;
-                uint32_t pwm_value = (temp_diff * pwm_period) / temp_threshold;
-                __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, pwm_value);
-            }
-            else
-            {
-                __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
+            if (!led_manual_mode) {
+                if(temp < temp_threshold)
+                {
+                    uint32_t temp_diff = temp_threshold - temp;
+                    if(temp_diff > temp_threshold) temp_diff = temp_threshold;
+                    uint32_t pwm_value = (temp_diff * pwm_period) / temp_threshold;
+                    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, pwm_value);
+                }
+                else
+                {
+                    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
+                }
             }
             
             uint32_t humi_diff = 0;
-            if(dht_data.humi_int > humi_threshold)
-            {
-                uint8_t max_diff = 100 - humi_threshold;
-                humi_diff = dht_data.humi_int - humi_threshold;
-                if(humi_diff > max_diff) humi_diff = max_diff;
-                uint32_t pwm_value = (humi_diff * pwm_period) / max_diff;
-                __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, pwm_value);
-                uint32_t fan_speed = (humi_diff * 100) / max_diff;
-                sprintf(fan_str, "ON %d%%", fan_speed);
-            }
-            else
-            {
-                __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
-                sprintf(fan_str, "OFF      ");
+            if (!fan_manual_mode) {
+                if(dht_data.humi_int > humi_threshold)
+                {
+                    uint8_t max_diff = 100 - humi_threshold;
+                    humi_diff = dht_data.humi_int - humi_threshold;
+                    if(humi_diff > max_diff) humi_diff = max_diff;
+                    uint32_t pwm_value = (humi_diff * pwm_period) / max_diff;
+                    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, pwm_value);
+                    uint32_t fan_speed = (humi_diff * 100) / max_diff;
+                    sprintf(fan_str, "ON %d%%", fan_speed);
+                }
+                else
+                {
+                    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
+                    sprintf(fan_str, "OFF      ");
+                }
+            } else {
+                uint32_t fan_pwm = __HAL_TIM_GET_COMPARE(&htim2, TIM_CHANNEL_2);
+                if (fan_pwm > 0) {
+                    uint32_t fan_speed = (fan_pwm * 100) / pwm_period;
+                    sprintf(fan_str, "ON %d%%", fan_speed);
+                } else {
+                    sprintf(fan_str, "OFF      ");
+                }
             }
             
             OLED_ShowString(40, 0, (uint8_t*)str, 8, 1);
@@ -267,8 +313,13 @@ int main(void)
             OLED_ShowString(40, 0, (uint8_t*)"Error", 8, 1);
             OLED_ShowString(40, 16, (uint8_t*)"     ", 8, 1);
             OLED_Refresh();
-            __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
-            __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
+            // 只有非手动模式才关闭
+            if (!led_manual_mode) {
+                __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
+            }
+            if (!fan_manual_mode) {
+                __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
+            }
         }
         
         // 每5秒发送一次数据到蓝牙

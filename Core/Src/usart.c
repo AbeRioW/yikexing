@@ -19,9 +19,13 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "usart.h"
+#include <string.h>
 
 /* USER CODE BEGIN 0 */
-
+extern volatile uint8_t uart_rx_flag;
+extern uint8_t uart_rx_buf[32];
+extern uint8_t uart_rx_idx;
+extern uint8_t uart_rx_byte;
 /* USER CODE END 0 */
 
 UART_HandleTypeDef huart2;
@@ -118,6 +122,30 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 }
 
 /* USER CODE BEGIN 1 */
-
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+    if (huart->Instance == USART2)
+    {
+        if (uart_rx_idx < 31)
+        {
+            uart_rx_buf[uart_rx_idx] = uart_rx_byte;
+            uart_rx_idx++;
+            uart_rx_buf[uart_rx_idx] = '\0';
+            
+            // 检查是否包含完整命令
+            if (strstr((char*)uart_rx_buf, "ledon") != NULL || 
+                strstr((char*)uart_rx_buf, "ledoff") != NULL ||
+                strstr((char*)uart_rx_buf, "fanon") != NULL ||
+                strstr((char*)uart_rx_buf, "fanoff") != NULL) {
+                uart_rx_flag = 1;
+            }
+        }
+        else
+        {
+            uart_rx_idx = 0;
+        }
+        HAL_UART_Receive_IT(&huart2, &uart_rx_byte, 1);
+    }
+}
 /* USER CODE END 1 */
 
